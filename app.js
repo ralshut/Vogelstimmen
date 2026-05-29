@@ -28,6 +28,8 @@ const BIRDS = [
   { name: "Buchfink",             query: "Fringilla coelebs" }
 ];
 
+const XENO_CANTO_KEY = "22657f06488beec27d2de53d2d8fd45036d7da02";
+
 const imageCache = new Map();
 const audioCache = new Map();
 let currentAudio = null;
@@ -58,29 +60,63 @@ async function fetchBirdImage(bird) {
   }
 }
 
+function xenoCantoQuery(scientificName) {
+  // "Turdus philomelos" → "gen:Turdus+sp:philomelos+q:A"
+  const [genus, species] = scientificName.trim().split(/\s+/);
+  if (!species) return null;
+  return `gen:${genus}+sp:${species}+q:A`;
+}
+
 async function fetchAudioUrl(bird) {
   if (audioCache.has(bird.query)) return audioCache.get(bird.query);
 
+  // Primär: xeno-canto API v3
+  try {
+    const q = xenoCantoQuery(bird.query);
+    if (q) {
+      const resp = await fetch(`https://xeno-canto.org/api/3/recordings?query=${q}&key=${XENO_CANTO_KEY}`);
+      const data = await resp.json();
+      if (data.recordings && data.recordings.length > 0) {
+        const audioUrl = data.recordings[0].file;
+        audioCache.set(bird.query, audioUrl);
+        return audioUrl;
+      }
+      // Fallback ohne Qualitätsfilter (q:A)
+      const [genus, species] = bird.query.trim().split(/\s+/);
+      const q2 = `gen:${genus}+sp:${species}`;
+      const resp2 = await fetch(`https://xeno-canto.org/api/3/recordings?query=${q2}&key=${XENO_CANTO_KEY}`);
+      const data2 = await resp2.json();
+      if (data2.recordings && data2.recordings.length > 0) {
+        const audioUrl = data2.recordings[0].file;
+        audioCache.set(bird.query, audioUrl);
+        return audioUrl;
+      }
+    }
+  } catch (err) {
+    console.warn("xeno-canto fehlgeschlagen, versuche Wikimedia...", err);
+  }
+
+  // Fallback: Wikimedia Commons
   try {
     const q = encodeURIComponent(`${bird.query} filetype:audio`);
-    const searchUrl = `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${q}&srnamespace=6&format=json&srlimit=1&origin=*`;
-    const searchResp = await fetch(searchUrl);
+    const searchResp = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${q}&srnamespace=6&format=json&srlimit=8&origin=*`);
     const searchData = await searchResp.json();
-    const hits = searchData.query?.search;
+    const hits = searchData.query?.search || [];
 
-    if (!hits || hits.length === 0) {
-      audioCache.set(bird.query, null);
-      return null;
-    }
+    const validHit = hits.find(h => {
+      const name = h.title.replace(/^File:/i, "");
+      return !/^[a-z]{2,3}(-[a-z]{2,4})?-/i.test(name) &&
+             !/^pronunciation|^wikt|glocken|kirche|bell|clock|LL-Q/i.test(name);
+    });
 
-    const fileTitle = encodeURIComponent(hits[0].title);
-    const fileUrl = `https://commons.wikimedia.org/w/api.php?action=query&titles=${fileTitle}&prop=imageinfo&iiprop=url&format=json&origin=*`;
-    const fileResp = await fetch(fileUrl);
+    if (!validHit) { audioCache.set(bird.query, null); return null; }
+
+    const fileTitle = encodeURIComponent(validHit.title);
+    const fileResp = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&titles=${fileTitle}&prop=imageinfo&iiprop=url&format=json&origin=*`);
     const fileData = await fileResp.json();
     const pages = fileData.query?.pages || {};
     const page = Object.values(pages)[0];
     const audioUrl = page?.imageinfo?.[0]?.url || null;
-
     audioCache.set(bird.query, audioUrl);
     return audioUrl;
   } catch {
