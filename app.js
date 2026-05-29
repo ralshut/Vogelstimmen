@@ -37,6 +37,50 @@ const audioCache = new Map();
 let currentAudio = null;
 let currentCard = null;
 
+// Quiz-Modus
+let quizMode = false;
+const quizStates = new Map(); // card → 0|1|2|3
+const allCards = [];          // alle Karten für globale Operationen
+
+function setQuizState(card, state) {
+  quizStates.set(card, state);
+  const img  = card.querySelector("img");
+  const name = card.querySelector(".bird-name");
+  const btn  = card.querySelector(".play-btn");
+
+  // CSS-Klassen setzen
+  img.classList.toggle("quiz-hidden-img", state < 2);
+  name.classList.toggle("quiz-hidden-name", state < 3);
+  card.classList.toggle("quiz-solved", state === 3);
+
+  // Button-Symbol
+  if (state === 1) btn.textContent = "🖼️";
+  else if (state === 2) btn.textContent = "🔤";
+  else btn.textContent = "▶️";
+}
+
+function toggleQuizMode() {
+  quizMode = !quizMode;
+  stopCurrentAudio();
+
+  const toggleBtn = document.getElementById("quiz-toggle");
+  if (quizMode) {
+    toggleBtn.textContent = "✅ Quiz beenden";
+    toggleBtn.classList.add("quiz-active");
+    allCards.forEach(({ card }) => setQuizState(card, 0));
+  } else {
+    toggleBtn.textContent = "🎓 Quiz starten";
+    toggleBtn.classList.remove("quiz-active");
+    allCards.forEach(({ card }) => {
+      quizStates.delete(card);
+      card.querySelector("img").classList.remove("quiz-hidden-img");
+      card.querySelector(".bird-name").classList.remove("quiz-hidden-name");
+      card.classList.remove("quiz-solved");
+      card.querySelector(".play-btn").textContent = "▶️";
+    });
+  }
+}
+
 const PLACEHOLDER_SVG = "data:image/svg+xml," + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240">
     <rect fill="#e8f5e9" width="320" height="240"/>
@@ -75,24 +119,27 @@ async function fetchAudioUrl(bird) {
 
   // Primär: xeno-canto API v3
   try {
-    const q = xenoCantoQuery(bird.query);
-    if (q) {
-      const resp = await fetch(`https://xeno-canto.org/api/3/recordings?query=${q}&key=${XENO_CANTO_KEY}`);
-      const data = await resp.json();
-      if (data.recordings && data.recordings.length > 0) {
-        const audioUrl = data.recordings[0].file;
-        audioCache.set(bird.query, audioUrl);
-        return audioUrl;
-      }
-      // Fallback ohne Qualitätsfilter (q:A)
-      const [genus, species] = bird.query.trim().split(/\s+/);
-      const q2 = `gen:${genus}+sp:${species}`;
-      const resp2 = await fetch(`https://xeno-canto.org/api/3/recordings?query=${q2}&key=${XENO_CANTO_KEY}`);
-      const data2 = await resp2.json();
-      if (data2.recordings && data2.recordings.length > 0) {
-        const audioUrl = data2.recordings[0].file;
-        audioCache.set(bird.query, audioUrl);
-        return audioUrl;
+    const [genus, species] = bird.query.trim().split(/\s+/);
+    if (genus && species) {
+      // Erst Qualität A, dann ohne Filter — jeweils bis zu 20 Aufnahmen holen
+      const queries = [
+        `gen:${genus}+sp:${species}+q:A`,
+        `gen:${genus}+sp:${species}`
+      ];
+      for (const q of queries) {
+        const resp = await fetch(
+          `https://xeno-canto.org/api/3/recordings?query=${q}&key=${XENO_CANTO_KEY}&page=1`
+        );
+        const data = await resp.json();
+        if (!data.recordings || data.recordings.length === 0) continue;
+
+        // .mp3 bevorzugen (Safari versteht kein .wav von xeno-canto)
+        const mp3 = data.recordings.find(r => (r["file-name"] || "").toLowerCase().endsWith(".mp3"));
+        const best = mp3 || data.recordings[0];
+        if (best.file) {
+          audioCache.set(bird.query, best.file);
+          return best.file;
+        }
       }
     }
   } catch (err) {
@@ -226,8 +273,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const button = document.createElement("button");
     button.className = "play-btn";
     button.textContent = "▶️";
-    button.onclick = () => playBird(card, bird);
+    button.onclick = () => {
+      if (!quizMode) {
+        playBird(card, bird);
+        return;
+      }
+      const state = quizStates.get(card) ?? 0;
+      if (state === 0) {
+        playBird(card, bird);
+        setQuizState(card, 1);
+      } else if (state === 1) {
+        setQuizState(card, 2);
+      } else if (state === 2) {
+        setQuizState(card, 3);
+      } else {
+        playBird(card, bird); // state 3: Ton nochmal abspielen
+      }
+    };
 
+    allCards.push({ card, bird });
     card.appendChild(img);
     card.appendChild(name);
     card.appendChild(button);
