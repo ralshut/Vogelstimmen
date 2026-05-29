@@ -235,7 +235,7 @@ img:not(.quiz-hidden-img) {
   background: #333;
 }
 
-.bird-card.quiz-solved .quiz-replay-bar {
+.bird-card.quiz-has-audio .quiz-replay-bar {
   display: block;
 }
 

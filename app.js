@@ -59,9 +59,10 @@ function setQuizState(card, state) {
   img.classList.toggle("quiz-hidden-img", state < 2);
   name.classList.toggle("quiz-hidden-name", state < 3);
   card.classList.toggle("quiz-solved", state === 3);
+  card.classList.toggle("quiz-has-audio", state >= 1); // Leiste ab erstem Ton sichtbar
 
-  // Text der Replay-Leiste (basierend auf ob mehrere Aufnahmen gecacht sind)
-  if (state === 3 && bar) {
+  // Text der Replay-Leiste aktualisieren sobald Ton gespielt wurde
+  if (state >= 1 && bar) {
     const list = audioListCache.get(card.dataset.birdQuery) || [];
     bar.textContent = list.length > 1 ? "▶ Andere Aufnahme" : "▶ Wiederholen";
   }
@@ -103,7 +104,7 @@ function toggleQuizMode() {
       quizStates.delete(card);
       card.querySelector("img").classList.remove("quiz-hidden-img");
       card.querySelector(".bird-name").classList.remove("quiz-hidden-name");
-      card.classList.remove("quiz-solved");
+      card.classList.remove("quiz-solved", "quiz-has-audio");
       card.querySelector(".play-btn").textContent = "▶️";
     });
   }
