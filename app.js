@@ -6,7 +6,8 @@ const BIRDS = [
   { name: "Mittelspecht",         query: "Dendrocopos medius" },
   { name: "Haustaube",            query: "Columba livia" },
   { name: "Haussperling (Spatz)", query: "Passer domesticus" },
-  { name: "Hausrotschwanz",       query: "Phoenicurus ochruros" },
+  { name: "Hausrotschwanz",       query: "Phoenicurus ochruros",
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/Black_Redstart_%282312328346%29.jpg/330px-Black_Redstart_%282312328346%29.jpg" },
   { name: "Krähe",                query: "Corvus corone" },
   { name: "Zilpzalp",             query: "Phylloscopus collybita" },
   { name: "Rotkelchen",           query: "Erithacus rubecula" },
@@ -16,7 +17,8 @@ const BIRDS = [
   { name: "Blaumeise",            query: "Cyanistes caeruleus" },
   { name: "Grünspecht",           query: "Picus viridis" },
   { name: "Gartenrotschwanz",     query: "Phoenicurus phoenicurus" },
-  { name: "Mäusebussard",         query: "Buteo buteo" },
+  { name: "Mäusebussard",         query: "Buteo buteo",
+    image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/B._buteo%2C_Elsdorf_%28DE%29_--_2023_--_0315.jpg/330px-B._buteo%2C_Elsdorf_%28DE%29_--_2023_--_0315.jpg" },
   { name: "Hohltaube",            query: "Columba oenas" },
   { name: "Amsel",                query: "Turdus merula" },
   { name: "Mönchsgrasmücke",      query: "Sylvia atricapilla" },
@@ -43,6 +45,7 @@ const PLACEHOLDER_SVG = "data:image/svg+xml," + encodeURIComponent(
 );
 
 async function fetchBirdImage(bird) {
+  if (bird.image) return bird.image; // Direktes Bild überschreibt Wikipedia
   if (imageCache.has(bird.query)) return imageCache.get(bird.query);
 
   try {
