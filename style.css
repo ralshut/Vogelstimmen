@@ -74,6 +74,37 @@ header .hint {
   transition: transform 0.2s, box-shadow 0.2s;
   display: flex;
   flex-direction: column;
+  position: relative;
+}
+
+.card-spinner {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(232, 245, 233, 0.65);
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  border-radius: 16px;
+  pointer-events: none;
+}
+
+.card-spinner.active {
+  display: flex;
+}
+
+.card-spinner::after {
+  content: "";
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(76, 175, 80, 0.25);
+  border-top-color: #4caf50;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .bird-card:hover {

@@ -244,6 +244,8 @@ function stopCurrentAudio() {
     currentCard.classList.remove("playing");
     const btn = currentCard.querySelector(".play-btn");
     if (btn) btn.textContent = "▶️";
+    const sp = currentCard.querySelector(".card-spinner");
+    if (sp) sp.classList.remove("active");
     currentCard = null;
   }
 }
@@ -263,7 +265,16 @@ async function playBird(card, bird, forcePlay = false) {
   button.textContent = "⏳";
   button.disabled = true;
 
+  // Spinner erst nach 150 ms einblenden – bei gecachten Aufnahmen blitzt er so nicht auf
+  const cardSpinner = card.querySelector(".card-spinner");
+  let spinnerTimer = cardSpinner
+    ? setTimeout(() => cardSpinner.classList.add("active"), 150)
+    : null;
+
   const audioUrl = await fetchAudioUrl(bird);
+
+  clearTimeout(spinnerTimer);
+  if (cardSpinner) cardSpinner.classList.remove("active");
 
   if (!audioUrl) {
     button.textContent = "❌";
@@ -337,6 +348,10 @@ document.addEventListener("DOMContentLoaded", () => {
     replayBar.textContent = "▶ Andere Aufnahme";
     replayBar.onclick = () => playBird(card, bird, true); // immer neue Aufnahme, kein Toggle
     card.appendChild(replayBar);
+
+    const spinner = document.createElement("div");
+    spinner.className = "card-spinner";
+    card.appendChild(spinner);
 
     const img = document.createElement("img");
     img.src = PLACEHOLDER_SVG;
