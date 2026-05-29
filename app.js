@@ -67,14 +67,29 @@ function toggleQuizMode() {
   stopCurrentAudio();
 
   const toggleBtn = document.getElementById("quiz-toggle");
+  const grid = document.getElementById("bird-grid");
+
   if (quizMode) {
     toggleBtn.textContent = "✅ Quiz beenden";
     toggleBtn.classList.add("quiz-active");
-    allCards.forEach(({ card }) => setQuizState(card, 0));
+
+    // Karten mischen (Fisher-Yates) und in neuer Reihenfolge ins Grid hängen
+    const shuffled = [...allCards];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    shuffled.forEach(({ card }) => {
+      grid.appendChild(card); // verschiebt vorhandenes Element ans Ende
+      setQuizState(card, 0);
+    });
   } else {
     toggleBtn.textContent = "🎓 Quiz starten";
     toggleBtn.classList.remove("quiz-active");
+
+    // Ursprüngliche Reihenfolge wiederherstellen
     allCards.forEach(({ card }) => {
+      grid.appendChild(card);
       quizStates.delete(card);
       card.querySelector("img").classList.remove("quiz-hidden-img");
       card.querySelector(".bird-name").classList.remove("quiz-hidden-name");
@@ -281,10 +296,8 @@ document.addEventListener("DOMContentLoaded", () => {
     name.className = "bird-name";
     name.textContent = bird.name;
 
-    const button = document.createElement("button");
-    button.className = "play-btn";
-    button.textContent = "▶️";
-    button.onclick = () => {
+    // Gemeinsame Aktion für Bild-Klick und Button-Klick
+    const handleAction = () => {
       if (!quizMode) {
         playBird(card, bird);
         return;
@@ -301,6 +314,13 @@ document.addEventListener("DOMContentLoaded", () => {
         playBird(card, bird); // state 3: Ton nochmal abspielen
       }
     };
+
+    img.onclick = handleAction;
+
+    const button = document.createElement("button");
+    button.className = "play-btn";
+    button.textContent = "▶️";
+    button.onclick = handleAction;
 
     allCards.push({ card, bird });
     card.appendChild(img);
