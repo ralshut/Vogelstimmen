@@ -35,8 +35,10 @@ const XENO_CANTO_KEY = "22657f06488beec27d2de53d2d8fd45036d7da02";
 // Safari benötigt Accept-Ranges: bytes zum Abspielen – xeno-canto liefert ihn nicht
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-const imageCache = new Map();
-const audioCache = new Map(); // bird.query → url | null (zufällig beim ersten Abspielen gewählt)
+const imageCache    = new Map();
+const audioListCache = new Map(); // xeno-canto: bird.query → url[]  (einmalig geladen)
+const wikiCache      = new Map(); // Wikimedia:  bird.query → url | null
+const lastPlayed     = new Map(); // bird.query → url  (zuletzt gespielt, wird beim nächsten übersprungen)
 let currentAudio = null;
 let currentCard = null;
 
@@ -126,75 +128,91 @@ async function fetchBirdImage(bird) {
 }
 
 // xeno-canto: bis zu 5 Qualität-A-Aufnahmen als Liste holen
-// xeno-canto: eine zufällige Qualität-A-Aufnahme aus den ersten 5 Treffern wählen
-async function fetchFromXenoCanto(bird) {
+// Wählt zufällig aus der Liste, vermeidet die zuletzt gespielte URL
+function pickDifferent(list, last) {
+  if (!list.length) return null;
+  const others = list.length > 1 ? list.filter(u => u !== last) : list;
+  return others[Math.floor(Math.random() * others.length)];
+}
+
+// xeno-canto: Top-5 Qualität-A-Aufnahmen einmalig laden und cachen
+async function fetchXenoList(bird) {
+  if (audioListCache.has(bird.query)) return audioListCache.get(bird.query);
+
   const [genus, species] = bird.query.trim().split(/\s+/);
-  if (!genus || !species) return null;
+  if (!genus || !species) { audioListCache.set(bird.query, []); return []; }
 
   for (const q of [
-    `gen:${genus}+sp:${species}+q:A`, // Qualität A (best bewertet)
-    `gen:${genus}+sp:${species}`       // ohne Qualitätsvorgabe als Fallback
+    `gen:${genus}+sp:${species}+q:A`,
+    `gen:${genus}+sp:${species}`
   ]) {
     try {
-      const resp = await fetch(
+      const data = await (await fetch(
         `https://xeno-canto.org/api/3/recordings?query=${q}&key=${XENO_CANTO_KEY}&page=1`
-      );
-      const data = await resp.json();
+      )).json();
       if (!data.recordings?.length) continue;
 
-      // MP3 bevorzugen, aus den ersten 5 Treffern zufällig einen wählen
       const sorted = [
         ...data.recordings.filter(r => r["file-name"]?.toLowerCase().endsWith(".mp3")),
         ...data.recordings.filter(r => !r["file-name"]?.toLowerCase().endsWith(".mp3"))
       ];
-      const candidates = sorted.slice(0, 5).map(r => r.file).filter(Boolean);
-      if (candidates.length > 0) return candidates[Math.floor(Math.random() * candidates.length)];
+      const urls = sorted.slice(0, 5).map(r => r.file).filter(Boolean);
+      if (urls.length) { audioListCache.set(bird.query, urls); return urls; }
     } catch (err) {
       console.warn("xeno-canto fehlgeschlagen:", err);
       break;
     }
   }
-  return null;
+  audioListCache.set(bird.query, []);
+  return [];
 }
 
 // Wikimedia Commons: hat Accept-Ranges + CORS → funktioniert auf Safari
-async function fetchFromWikimedia(bird) {
+async function fetchWikiUrl(bird) {
+  if (wikiCache.has(bird.query)) return wikiCache.get(bird.query);
+
+  let url = null;
   try {
-    const q = encodeURIComponent(`${bird.query} filetype:audio`);
     const hits = (await (await fetch(
-      `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${q}&srnamespace=6&format=json&srlimit=10&origin=*`
+      `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(bird.query + " filetype:audio")}&srnamespace=6&format=json&srlimit=10&origin=*`
     )).json()).query?.search || [];
 
-    const validHits = hits.filter(h => {
-      const name = h.title.replace(/^File:/i, "");
-      return !/^[a-z]{2,3}(-[a-z]{2,4})?-/i.test(name) &&
-             !/^pronunciation|^wikt|glocken|kirche|bell|clock|LL-Q/i.test(name);
-    });
-    const validHit = validHits.find(h => !h.title.toLowerCase().endsWith(".ogg")) || validHits[0];
+    const validHit = hits
+      .filter(h => {
+        const name = h.title.replace(/^File:/i, "");
+        return !/^[a-z]{2,3}(-[a-z]{2,4})?-/i.test(name) &&
+               !/^pronunciation|^wikt|glocken|kirche|bell|clock|LL-Q/i.test(name);
+      })
+      .find(h => !h.title.toLowerCase().endsWith(".ogg"))
+      || hits[0];
 
     if (validHit) {
       const page = Object.values((await (await fetch(
         `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(validHit.title)}&prop=imageinfo&iiprop=url&format=json&origin=*`
       )).json()).query?.pages || {})[0];
-      return page?.imageinfo?.[0]?.url || null;
+      url = page?.imageinfo?.[0]?.url || null;
     }
   } catch (err) {
     console.warn("Wikimedia fehlgeschlagen:", err);
   }
-  return null;
+  wikiCache.set(bird.query, url);
+  return url;
 }
 
 async function fetchAudioUrl(bird) {
-  if (audioCache.has(bird.query)) return audioCache.get(bird.query);
-
-  // Safari: Wikimedia zuerst (braucht Accept-Ranges), xeno-canto als Fallback
-  // Alle anderen: xeno-canto zuerst (zufällige Auswahl aus Top-5), Wikimedia als Fallback
-  const url = isSafari
-    ? (await fetchFromWikimedia(bird)) ?? (await fetchFromXenoCanto(bird))
-    : (await fetchFromXenoCanto(bird)) ?? (await fetchFromWikimedia(bird));
-
-  audioCache.set(bird.query, url ?? null);
-  return url ?? null;
+  if (isSafari) {
+    // Safari: Wikimedia immer gleich (cached), xeno-canto als Fallback mit Variation
+    const wikiUrl = await fetchWikiUrl(bird);
+    if (wikiUrl) return wikiUrl;
+    const url = pickDifferent(await fetchXenoList(bird), lastPlayed.get(bird.query));
+    if (url) lastPlayed.set(bird.query, url);
+    return url;
+  } else {
+    // Alle anderen: jedes Mal eine andere aus der gecachten Top-5-Liste
+    const url = pickDifferent(await fetchXenoList(bird), lastPlayed.get(bird.query));
+    if (url) { lastPlayed.set(bird.query, url); return url; }
+    return await fetchWikiUrl(bird); // Fallback
+  }
 }
 
 function stopCurrentAudio() {
