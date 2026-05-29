@@ -35,10 +35,11 @@ const XENO_CANTO_KEY = "22657f06488beec27d2de53d2d8fd45036d7da02";
 // Safari benötigt Accept-Ranges: bytes zum Abspielen – xeno-canto liefert ihn nicht
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-const imageCache    = new Map();
-const audioListCache = new Map(); // xeno-canto: bird.query → url[]  (einmalig geladen)
+const imageCache     = new Map();
+const audioListCache = new Map(); // xeno-canto: bird.query → url[]
 const wikiCache      = new Map(); // Wikimedia:  bird.query → url | null
-const lastPlayed     = new Map(); // bird.query → url  (zuletzt gespielt, wird beim nächsten übersprungen)
+const lastPlayed     = new Map(); // bird.query → url  (zuletzt gespielt)
+const preloadCache   = new Map(); // url → Audio  (vorgeladene Audio-Objekte)
 let currentAudio = null;
 let currentCard = null;
 
@@ -127,7 +128,18 @@ async function fetchBirdImage(bird) {
   }
 }
 
-// xeno-canto: bis zu 5 Qualität-A-Aufnahmen als Liste holen
+// Lädt Audio-Dateien still im Hintergrund vor, damit der nächste Klick sofort abspielt
+function preloadInBackground(urls) {
+  urls.forEach(url => {
+    if (url && !preloadCache.has(url)) {
+      const a = new Audio();
+      a.preload = "auto";
+      a.src = url; // Browser beginnt zu puffern
+      preloadCache.set(url, a);
+    }
+  });
+}
+
 // Wählt zufällig aus der Liste, vermeidet die zuletzt gespielte URL
 function pickDifferent(list, last) {
   if (!list.length) return null;
@@ -253,12 +265,17 @@ async function playBird(card, bird) {
   card.classList.add("playing");
   currentCard = card;
 
-  const audio = new Audio(audioUrl);
+  // Vorgeladenes Audio-Objekt nutzen (sofort bereit) oder neu erstellen
+  const audio = preloadCache.get(audioUrl) ?? new Audio(audioUrl);
+  preloadCache.set(audioUrl, audio); // sicherstellen, dass es im Cache ist
   currentAudio = audio;
 
   audio.onplay = () => {
     button.textContent = "⏸️";
     button.disabled = false;
+    // Während dieser Ton spielt: die anderen Aufnahmen im Hintergrund vorpuffern
+    const others = (audioListCache.get(bird.query) || []).filter(u => u !== audioUrl);
+    preloadInBackground(others);
   };
 
   audio.onended = () => {
