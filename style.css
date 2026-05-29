@@ -216,6 +216,29 @@ img:not(.quiz-hidden-img) {
   box-shadow: 0 0 16px rgba(67, 160, 71, 0.5);
 }
 
+/* Dunkle Leiste oben – andere Aufnahme abspielen */
+.quiz-replay-bar {
+  display: none;
+  background: #1a1a1a;
+  color: #fff;
+  text-align: center;
+  padding: 9px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.quiz-replay-bar:hover,
+.quiz-replay-bar:active {
+  background: #333;
+}
+
+.bird-card.quiz-solved .quiz-replay-bar {
+  display: block;
+}
+
 /* ───────────────────────────────────────────────────── */
 
 @keyframes slideDown {

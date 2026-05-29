@@ -53,11 +53,18 @@ function setQuizState(card, state) {
   const img  = card.querySelector("img");
   const name = card.querySelector(".bird-name");
   const btn  = card.querySelector(".play-btn");
+  const bar  = card.querySelector(".quiz-replay-bar");
 
   // CSS-Klassen setzen
   img.classList.toggle("quiz-hidden-img", state < 2);
   name.classList.toggle("quiz-hidden-name", state < 3);
   card.classList.toggle("quiz-solved", state === 3);
+
+  // Text der Replay-Leiste (basierend auf ob mehrere Aufnahmen gecacht sind)
+  if (state === 3 && bar) {
+    const list = audioListCache.get(card.dataset.birdQuery) || [];
+    bar.textContent = list.length > 1 ? "▶ Andere Aufnahme" : "▶ Wiederholen";
+  }
 
   // Button-Symbol
   if (state === 1) btn.textContent = "🖼️";
@@ -276,6 +283,12 @@ async function playBird(card, bird) {
     // Während dieser Ton spielt: die anderen Aufnahmen im Hintergrund vorpuffern
     const others = (audioListCache.get(bird.query) || []).filter(u => u !== audioUrl);
     preloadInBackground(others);
+    // Replay-Leiste aktualisieren (jetzt ist die Liste definitiv gecacht)
+    const bar = card.querySelector(".quiz-replay-bar");
+    if (bar) {
+      const list = audioListCache.get(bird.query) || [];
+      bar.textContent = list.length > 1 ? "▶ Andere Aufnahme" : "▶ Wiederholen";
+    }
   };
 
   audio.onended = () => {
@@ -313,6 +326,14 @@ document.addEventListener("DOMContentLoaded", () => {
   BIRDS.forEach(bird => {
     const card = document.createElement("div");
     card.className = "bird-card";
+    card.dataset.birdQuery = bird.query; // für setQuizState zugänglich
+
+    // Dunkle Leiste oben (nur im gelösten Quiz-Zustand sichtbar)
+    const replayBar = document.createElement("div");
+    replayBar.className = "quiz-replay-bar";
+    replayBar.textContent = "▶ Andere Aufnahme";
+    replayBar.onclick = () => playBird(card, bird);
+    card.appendChild(replayBar);
 
     const img = document.createElement("img");
     img.src = PLACEHOLDER_SVG;
