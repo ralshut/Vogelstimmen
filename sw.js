@@ -1,4 +1,4 @@
-const CACHE_NAME = "vogelstimmen-v1";
+const CACHE_NAME = "vogelstimmen-v3";
 const ASSETS_TO_CACHE = [
   "./index.html",
   "./style.css",
