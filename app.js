@@ -59,10 +59,10 @@ function setQuizState(card, state) {
   img.classList.toggle("quiz-hidden-img", state < 2);
   name.classList.toggle("quiz-hidden-name", state < 3);
   card.classList.toggle("quiz-solved", state === 3);
-  card.classList.toggle("quiz-has-audio", state >= 1); // Leiste ab erstem Ton sichtbar
+  card.classList.toggle("quiz-has-audio", state === 1 || state === 2); // Leiste nur solange Name verdeckt
 
   // Text der Replay-Leiste aktualisieren sobald Ton gespielt wurde
-  if (state >= 1 && bar) {
+  if (state >= 1 && state < 3 && bar) {
     const list = audioListCache.get(card.dataset.birdQuery) || [];
     bar.textContent = list.length > 1 ? "▶ Andere Aufnahme" : "▶ Wiederholen";
   }
