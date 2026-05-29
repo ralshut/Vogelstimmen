@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Software_Checkout\\\\Vogelexkursion\" -Recurse -Force)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(ConvertTo-Json)",
+      "PowerShell(cd \"C:\\\\Software_Checkout\\\\Vogelexkursion\"; python -m http.server 8000 2>&1 &)",
+      "mcp__Claude_in_Chrome__switch_browser",
+      "PowerShell(curl http://localhost:8000/index.html 2>&1)"
+    ]
+  }
+}
