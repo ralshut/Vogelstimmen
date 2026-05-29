@@ -117,11 +117,47 @@ function xenoCantoQuery(scientificName) {
 async function fetchAudioUrl(bird) {
   if (audioCache.has(bird.query)) return audioCache.get(bird.query);
 
-  // Primär: xeno-canto API v3
+  // Primär: Wikimedia Commons
+  // (liefert Accept-Ranges + CORS-Header → funktioniert auf Safari/Mac)
+  try {
+    const q = encodeURIComponent(`${bird.query} filetype:audio`);
+    const searchResp = await fetch(
+      `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${q}&srnamespace=6&format=json&srlimit=10&origin=*`
+    );
+    const searchData = await searchResp.json();
+    const hits = searchData.query?.search || [];
+
+    const validHits = hits.filter(h => {
+      const name = h.title.replace(/^File:/i, "");
+      return !/^[a-z]{2,3}(-[a-z]{2,4})?-/i.test(name) &&
+             !/^pronunciation|^wikt|glocken|kirche|bell|clock|LL-Q/i.test(name);
+    });
+    // .mp3/.wav bevorzugen (.ogg läuft nicht auf Safari)
+    const validHit = validHits.find(h => !h.title.toLowerCase().endsWith(".ogg")) || validHits[0];
+
+    if (validHit) {
+      const fileTitle = encodeURIComponent(validHit.title);
+      const fileResp = await fetch(
+        `https://commons.wikimedia.org/w/api.php?action=query&titles=${fileTitle}&prop=imageinfo&iiprop=url&format=json&origin=*`
+      );
+      const fileData = await fileResp.json();
+      const pages = fileData.query?.pages || {};
+      const page = Object.values(pages)[0];
+      const audioUrl = page?.imageinfo?.[0]?.url || null;
+      if (audioUrl) {
+        audioCache.set(bird.query, audioUrl);
+        return audioUrl;
+      }
+    }
+  } catch (err) {
+    console.warn("Wikimedia fehlgeschlagen, versuche xeno-canto...", err);
+  }
+
+  // Fallback: xeno-canto API v3
+  // (kein Accept-Ranges → kein Safari, aber gut für Chrome/Android/Windows)
   try {
     const [genus, species] = bird.query.trim().split(/\s+/);
     if (genus && species) {
-      // Erst Qualität A, dann ohne Filter — jeweils bis zu 20 Aufnahmen holen
       const queries = [
         `gen:${genus}+sp:${species}+q:A`,
         `gen:${genus}+sp:${species}`
@@ -132,8 +168,6 @@ async function fetchAudioUrl(bird) {
         );
         const data = await resp.json();
         if (!data.recordings || data.recordings.length === 0) continue;
-
-        // .mp3 bevorzugen (Safari versteht kein .wav von xeno-canto)
         const mp3 = data.recordings.find(r => (r["file-name"] || "").toLowerCase().endsWith(".mp3"));
         const best = mp3 || data.recordings[0];
         if (best.file) {
@@ -143,36 +177,11 @@ async function fetchAudioUrl(bird) {
       }
     }
   } catch (err) {
-    console.warn("xeno-canto fehlgeschlagen, versuche Wikimedia...", err);
+    console.warn("xeno-canto fehlgeschlagen:", err);
   }
 
-  // Fallback: Wikimedia Commons
-  try {
-    const q = encodeURIComponent(`${bird.query} filetype:audio`);
-    const searchResp = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${q}&srnamespace=6&format=json&srlimit=8&origin=*`);
-    const searchData = await searchResp.json();
-    const hits = searchData.query?.search || [];
-
-    const validHit = hits.find(h => {
-      const name = h.title.replace(/^File:/i, "");
-      return !/^[a-z]{2,3}(-[a-z]{2,4})?-/i.test(name) &&
-             !/^pronunciation|^wikt|glocken|kirche|bell|clock|LL-Q/i.test(name);
-    });
-
-    if (!validHit) { audioCache.set(bird.query, null); return null; }
-
-    const fileTitle = encodeURIComponent(validHit.title);
-    const fileResp = await fetch(`https://commons.wikimedia.org/w/api.php?action=query&titles=${fileTitle}&prop=imageinfo&iiprop=url&format=json&origin=*`);
-    const fileData = await fileResp.json();
-    const pages = fileData.query?.pages || {};
-    const page = Object.values(pages)[0];
-    const audioUrl = page?.imageinfo?.[0]?.url || null;
-    audioCache.set(bird.query, audioUrl);
-    return audioUrl;
-  } catch {
-    audioCache.set(bird.query, null);
-    return null;
-  }
+  audioCache.set(bird.query, null);
+  return null;
 }
 
 function stopCurrentAudio() {
