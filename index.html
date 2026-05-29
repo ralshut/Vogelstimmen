@@ -6,7 +6,12 @@
   <meta name="description" content="Höre die Vogelstimmen von der Exkursion">
   <meta name="theme-color" content="#2e7d32">
   <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect fill='%232e7d32' width='192' height='192'/%3E%3Ctext x='96' y='100' text-anchor='middle' dy='.3em' font-size='120' fill='white'%3E🐦%3C/text%3E%3C/svg%3E">
+  <!-- iOS / Safari: ohne diese Tags öffnet sich immer der Browser -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Vögel">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="stylesheet" href="style.css">
   <title>Vogelstimmen Exkursion</title>
 </head>
@@ -19,6 +24,11 @@
       <p class="hint">Tippe auf einen Vogel, um seine Stimme zu hören</p>
     </header>
 
+    <div id="install-banner" style="display:none; background:#1b5e20; color:white; text-align:center; padding:12px; border-radius:12px; margin-bottom:20px;">
+      <span>📲 Diese Seite als App speichern</span>
+      <button id="install-btn" style="margin-left:12px; background:white; color:#1b5e20; border:none; padding:8px 16px; border-radius:8px; font-size:16px; font-weight:bold; cursor:pointer;">App installieren</button>
+    </div>
+
     <div id="bird-grid" class="bird-grid"></div>
 
     <footer>
@@ -28,11 +38,37 @@
 
   <script src="app.js"></script>
   <script>
+    // Service Worker registrieren
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(err => {
         console.log('Service Worker Registrierung fehlgeschlagen:', err);
       });
     }
+
+    // PWA Install-Banner anzeigen wenn Chrome bereit ist
+    let installPrompt = null;
+    const banner = document.getElementById('install-banner');
+    const installBtn = document.getElementById('install-btn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      installPrompt = e;
+      banner.style.display = 'block';
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (!installPrompt) return;
+      installPrompt.prompt();
+      const result = await installPrompt.userChoice;
+      if (result.outcome === 'accepted') {
+        banner.style.display = 'none';
+      }
+    });
+
+    window.addEventListener('appinstalled', () => {
+      banner.style.display = 'none';
+      installPrompt = null;
+    });
   </script>
 </body>
 </html>
