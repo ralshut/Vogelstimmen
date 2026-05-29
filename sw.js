@@ -1,9 +1,11 @@
 const CACHE_NAME = "vogelstimmen-v1";
 const ASSETS_TO_CACHE = [
-  "/index.html",
-  "/style.css",
-  "/app.js",
-  "/manifest.json"
+  "./index.html",
+  "./style.css",
+  "./app.js",
+  "./manifest.json",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {
