@@ -248,10 +248,12 @@ function stopCurrentAudio() {
   }
 }
 
-async function playBird(card, bird) {
+async function playBird(card, bird, forcePlay = false) {
   const button = card.querySelector(".play-btn");
 
-  if (currentCard === card && currentAudio) {
+  // Normaler Klick auf spielende Karte → stoppen (Toggle)
+  // Replay-Leiste (forcePlay) → immer neue Aufnahme starten
+  if (!forcePlay && currentCard === card && currentAudio) {
     stopCurrentAudio();
     return;
   }
@@ -333,7 +335,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const replayBar = document.createElement("div");
     replayBar.className = "quiz-replay-bar";
     replayBar.textContent = "▶ Andere Aufnahme";
-    replayBar.onclick = () => playBird(card, bird);
+    replayBar.onclick = () => playBird(card, bird, true); // immer neue Aufnahme, kein Toggle
     card.appendChild(replayBar);
 
     const img = document.createElement("img");
