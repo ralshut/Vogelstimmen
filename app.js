@@ -10,7 +10,7 @@ const BIRDS = [
     image: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/Black_Redstart_%282312328346%29.jpg/330px-Black_Redstart_%282312328346%29.jpg" },
   { name: "Krähe",                query: "Corvus corone" },
   { name: "Zilpzalp",             query: "Phylloscopus collybita" },
-  { name: "Rotkelchen",           query: "Erithacus rubecula" },
+  { name: "Rotkehlchen",          query: "Erithacus rubecula" },
   { name: "Zaunkönig",            query: "Troglodytes troglodytes" },
   { name: "Ringeltaube",          query: "Columba palumbus" },
   { name: "Eichelhäher",          query: "Garrulus glandarius" },
