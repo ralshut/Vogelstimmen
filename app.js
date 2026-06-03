@@ -42,6 +42,7 @@ const lastPlayed     = new Map(); // bird.query → url  (zuletzt gespielt)
 const preloadCache   = new Map(); // url → Audio  (vorgeladene Audio-Objekte)
 let currentAudio = null;
 let currentCard = null;
+let playGen = 0; // Generations-Zähler gegen Race-Conditions beim async Laden
 
 // Quiz-Modus
 let quizMode = false;
@@ -262,6 +263,11 @@ async function playBird(card, bird, forcePlay = false) {
 
   stopCurrentAudio();
 
+  // Jeder neue Ladevorgang bekommt eine eigene Generation.
+  // Nach dem await prüfen wir ob wir noch der aktuelle sind –
+  // sonst hat ein anderer Tap uns überholt und wir brechen ab.
+  const myGen = ++playGen;
+
   button.textContent = "⏳";
   button.disabled = true;
 
@@ -276,6 +282,13 @@ async function playBird(card, bird, forcePlay = false) {
   clearTimeout(spinnerTimer);
   if (cardSpinner) cardSpinner.classList.remove("active");
 
+  // Wurde in der Zwischenzeit ein anderer Tap gestartet? → sauber abbrechen
+  if (myGen !== playGen) {
+    button.textContent = "▶️";
+    button.disabled = false;
+    return;
+  }
+
   if (!audioUrl) {
     button.textContent = "❌";
     button.disabled = false;
@@ -286,9 +299,10 @@ async function playBird(card, bird, forcePlay = false) {
   card.classList.add("playing");
   currentCard = card;
 
-  // Vorgeladenes Audio-Objekt nutzen (sofort bereit) oder neu erstellen
+  // Vorgeladenes Audio-Objekt nutzen oder neu erstellen; auf Anfang zurücksetzen
   const audio = preloadCache.get(audioUrl) ?? new Audio(audioUrl);
-  preloadCache.set(audioUrl, audio); // sicherstellen, dass es im Cache ist
+  preloadCache.set(audioUrl, audio);
+  audio.currentTime = 0; // sicherstellen dass von vorne gestartet wird
   currentAudio = audio;
 
   audio.onplay = () => {
